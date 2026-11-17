@@ -1,0 +1,42 @@
+name: Build ReplayMod 26.1
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout patches
+        uses: actions/checkout@v4
+
+      - name: Clone ReplayMod source
+        run: git clone --recursive https://github.com/ReplayMod/ReplayMod.git src-replaymod
+
+      - name: Apply patches
+        working-directory: src-replaymod
+        run: |
+          patch -p1 < ../replaymod-gui.patch
+          patch -p1 < ../replaymod-hotbar.patch
+          patch -p1 < ../replaymod-inventory.patch
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build jar for Minecraft 26.1
+        working-directory: src-replaymod
+        run: |
+          chmod +x gradlew
+          ./gradlew :26.1:build --stacktrace
+
+      - name: Upload jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: ReplayMod-26.1-jar
+          path: src-replaymod/versions/26.1/build/libs/*.jar
