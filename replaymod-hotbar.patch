@@ -1,0 +1,14 @@
+--- a/src/main/java/com/replaymod/replay/camera/CameraEntity.java	2026-11-16 15:53:50.960909212 +0000
++++ b/src/main/java/com/replaymod/replay/camera/CameraEntity.java	2026-11-16 15:53:51.015100753 +0000
+@@ -910,6 +910,11 @@
+ 
+         { on(RenderHotbarCallback.EVENT, this::shouldRenderHotbar); }
+         private Boolean shouldRenderHotbar() {
++            // Free camera has no inventory of its own -> hide; while spectating a player let vanilla decide
++            Entity view = mc.getCameraEntity();
++            if (view != CameraEntity.this && view instanceof PlayerEntity) {
++                return null;
++            }
+             return false;
+         }
+ 

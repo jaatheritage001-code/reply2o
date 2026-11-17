@@ -1,0 +1,18 @@
+--- a/src/main/java/com/replaymod/replay/FullReplaySender.java
++++ b/src/main/java/com/replaymod/replay/FullReplaySender.java
+@@ -591,6 +591,15 @@
+      * @return The packet if it shall be sent, {@code null} otherwise
+      */
+     private Packet processGuiPacket(Packet p) {
++        if (p instanceof ScreenHandlerSlotUpdateS2CPacket) {
++            // Slot updates of the player's own inventory (window 0 / -2) are always forwarded, even while
++            // hurrying, so that the inventory screen (E) and the hotbar never get out of date.
++            int syncId = ((ScreenHandlerSlotUpdateS2CPacket) p).getSyncId();
++            if (syncId == 0 || syncId == -2) {
++                return p;
++            }
++        }
++
+         if (isHurrying()) {
+             // While jumping through the replay, packets are rushed; don't open/update any GUIs, and
+             // get rid of a GUI which may be left over from before the jump.

@@ -1,0 +1,134 @@
+diff --git a/src/main/java/com/replaymod/replay/FullReplaySender.java b/src/main/java/com/replaymod/replay/FullReplaySender.java
+index d146339..061f16f 100644
+--- a/src/main/java/com/replaymod/replay/FullReplaySender.java
++++ b/src/main/java/com/replaymod/replay/FullReplaySender.java
+@@ -202,7 +202,6 @@ public class FullReplaySender extends ChannelInboundHandlerAdapter implements Re
+             //#endif
+             //#if MC>=11400
+             OpenWrittenBookS2CPacket.class,
+-            OpenScreenS2CPacket.class,
+             //#endif
+             //#if MC>=11200
+             SynchronizeRecipesS2CPacket.class,
+@@ -214,16 +213,33 @@ public class FullReplaySender extends ChannelInboundHandlerAdapter implements Re
+             TitleS2CPacket.class,
+             //#endif
+             HealthUpdateS2CPacket.class,
+-            OpenHorseScreenS2CPacket.class,
+-            CloseScreenS2CPacket.class,
+-            ScreenHandlerSlotUpdateS2CPacket.class,
+-            ScreenHandlerPropertyUpdateS2CPacket.class,
+             SignEditorOpenS2CPacket.class,
+             StatisticsS2CPacket.class,
+             ExperienceBarUpdateS2CPacket.class,
+             PlayerAbilitiesS2CPacket.class
+     );
+ 
++    /**
++     * Packets which make up container GUIs (crafting table, chest, furnace, villager trades, horse inventory, ...).
++     * Unlike {@link #BAD_PACKETS}, these are forwarded during normal playback so that the GUI the recorded player
++     * had open is shown in the replay as well. See {@link #processGuiPacket(Packet)}.
++     */
++    private static final List<Class> GUI_PACKETS = Arrays.<Class>asList(
++            //#if MC>=11400
++            OpenScreenS2CPacket.class,
++            //#endif
++            OpenHorseScreenS2CPacket.class,
++            CloseScreenS2CPacket.class,
++            ScreenHandlerSlotUpdateS2CPacket.class,
++            ScreenHandlerPropertyUpdateS2CPacket.class
++    );
++
++    /**
++     * Whether a recorded container GUI was opened by us and has not been closed again.
++     * Used so that recorded "close screen" packets never close unrelated screens (e.g. ReplayMod's own).
++     */
++    private volatile boolean replayGuiOpen;
++
+     private static int TP_DISTANCE_LIMIT = 128;
+ 
+     /**
+@@ -569,6 +585,42 @@ public class FullReplaySender extends ChannelInboundHandlerAdapter implements Re
+         //#endif
+     }
+ 
++    /**
++     * Decides whether a container-GUI packet (see {@link #GUI_PACKETS}) is forwarded to the client.
++     * @param p One of the packets in {@link #GUI_PACKETS}
++     * @return The packet if it shall be sent, {@code null} otherwise
++     */
++    private Packet processGuiPacket(Packet p) {
++        if (isHurrying()) {
++            // While jumping through the replay, packets are rushed; don't open/update any GUIs, and
++            // get rid of a GUI which may be left over from before the jump.
++            if (replayGuiOpen) {
++                replayGuiOpen = false;
++                ReplayMod.instance.runLater(() -> { mc.openScreen(null); });
++            }
++            return null;
++        }
++
++        if (p instanceof CloseScreenS2CPacket) {
++            if (!replayGuiOpen) {
++                return null; // not our GUI, don't close whatever else is open
++            }
++            replayGuiOpen = false;
++            return p;
++        }
++
++        if (p instanceof ScreenHandlerSlotUpdateS2CPacket || p instanceof ScreenHandlerPropertyUpdateS2CPacket) {
++            return replayGuiOpen ? p : null;
++        }
++
++        // Remaining packets open a GUI (crafting table, chest, ...); don't replace any other screen
++        if (mc.currentScreen != null) {
++            return null;
++        }
++        replayGuiOpen = true;
++        return p;
++    }
++
+     /**
+      * Process a packet and return the result.
+      * @param p The packet to process
+@@ -632,6 +684,10 @@ public class FullReplaySender extends ChannelInboundHandlerAdapter implements Re
+             }
+         }
+ 
++        if (GUI_PACKETS.contains(p.getClass())) {
++            return processGuiPacket(p);
++        }
++
+         if(BAD_PACKETS.contains(p.getClass())) return null;
+ 
+         if (p instanceof CustomPayloadS2CPacket) {
+@@ -1177,6 +1233,7 @@ public class FullReplaySender extends ChannelInboundHandlerAdapter implements Re
+ 
+                         // Restart the replay.
+                         hasWorldLoaded = false;
++                        replayGuiOpen = false;
+                         inBundle = false;
+                         lastTimeStamp = 0;
+                         registry = getPacketTypeRegistry(State.LOGIN);
+@@ -1312,6 +1369,7 @@ public class FullReplaySender extends ChannelInboundHandlerAdapter implements Re
+                 }
+                 if (timestamp < lastTimeStamp) { // Restart the replay if we need to go backwards in time
+                     hasWorldLoaded = false;
++                    replayGuiOpen = false;
+                     inBundle = false;
+                     lastTimeStamp = 0;
+                     if (replayIn != null) {
+diff --git a/src/main/java/com/replaymod/replay/camera/CameraEntity.java b/src/main/java/com/replaymod/replay/camera/CameraEntity.java
+index 7ccfe61..3b2c686 100644
+--- a/src/main/java/com/replaymod/replay/camera/CameraEntity.java
++++ b/src/main/java/com/replaymod/replay/camera/CameraEntity.java
+@@ -904,7 +904,8 @@ public class CameraEntity
+ 
+         { on(RenderSpectatorCrosshairCallback.EVENT, this::shouldRenderSpectatorCrosshair); }
+         private Boolean shouldRenderSpectatorCrosshair() {
+-            return canSpectate(mc.targetedEntity);
++            // Always show the crosshair in the replay (vanilla only shows it for spectatable targets)
++            return true;
+         }
+ 
+         { on(RenderHotbarCallback.EVENT, this::shouldRenderHotbar); }
