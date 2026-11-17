@@ -22,10 +22,14 @@ jobs:
           patch -p1 < ../replaymod-hotbar.patch
           patch -p1 < ../replaymod-inventory.patch
 
+      # Gradle itself must run on JDK 21 (the Java downgrader plugin can't read JDK 25 classes),
+      # JDK 25 is installed as well so the Minecraft 26.1 compile can use it as toolchain.
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 25
+          java-version: |
+            25
+            21
 
       - uses: gradle/actions/setup-gradle@v4
 
@@ -33,7 +37,7 @@ jobs:
         working-directory: src-replaymod
         run: |
           chmod +x gradlew
-          ./gradlew :26.1:build --stacktrace
+          ./gradlew :26.1:build --stacktrace -Porg.gradle.java.installations.fromEnv=JAVA_HOME_25_X64
 
       - name: Upload jar
         uses: actions/upload-artifact@v4
