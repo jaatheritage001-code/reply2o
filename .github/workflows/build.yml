@@ -29,6 +29,8 @@ jobs:
           distribution: temurin
           java-version: |
             8
+            11
+            16
             17
             25
             21
@@ -39,7 +41,7 @@ jobs:
         working-directory: src-replaymod
         run: |
           chmod +x gradlew
-          ./gradlew :26.1:build --stacktrace -Porg.gradle.java.installations.fromEnv=JAVA_HOME_8_X64,JAVA_HOME_17_X64,JAVA_HOME_21_X64,JAVA_HOME_25_X64
+          ./gradlew :26.1:build --stacktrace -Porg.gradle.java.installations.fromEnv=JAVA_HOME_8_X64,JAVA_HOME_11_X64,JAVA_HOME_16_X64,JAVA_HOME_17_X64,JAVA_HOME_21_X64,JAVA_HOME_25_X64
 
       - name: Upload jar
         uses: actions/upload-artifact@v4
